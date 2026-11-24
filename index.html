@@ -142,7 +142,7 @@ table.list tr.clk:hover{background:#f8fafc}
     <button class="nav" data-target="surgery_record">수술기록</button>
     <button class="nav" data-target="anesthesia_record">마취기록</button>
     <div class="navgroup">내 기록</div>
-    <button class="nav" id="myRecordsNav" onclick="showStudentList()">📋 내 제출 기록</button>
+    <button class="nav" id="myRecordsNav" onclick="showStudentList()">📋 내 저장 기록</button>
     <button class="logout" onclick="logout()">⏏ 로그아웃</button>
   </aside>
 
@@ -159,15 +159,19 @@ table.list tr.clk:hover{background:#f8fafc}
         </div>
         <div style="grid-column: span 1"><label>나이</label><input type="text" id="p_age"></div>
         <div style="grid-column: span 2">
+          <label for="w_role">기록자 직종</label>
+          <select id="w_role" onchange="updateSaveButton()"><option value="nurse">간호사</option><option value="doctor">의사</option></select>
+        </div>
+        <div style="grid-column: span 2">
           <label>기록자 이름</label>
           <input type="text" id="w_name" readonly>
         </div>
-        <div style="grid-column: span 3"><label>제출 일시(제출 시 자동)</label><input type="text" id="w_time" readonly></div>
+        <div style="grid-column: span 3"><label for="w_time">작성일시(저장 시 자동)</label><input type="text" id="w_time" readonly></div>
       </div>
       <div class="actions-row" style="display:flex;justify-content:flex-end;margin-top:12px;gap:8px">
         <button class="action light" onclick="window.print()">🖨️ 인쇄</button>
         <button class="action warning" onclick="clearInputs()">⚡ 전체 초기화</button>
-        <button id="submitBtn" class="action primary" onclick="submitRecord()">제출하기</button>
+        <button id="submitBtn" class="action primary" onclick="submitRecord()">임시저장</button>
       </div>
     </div>
 
@@ -324,17 +328,17 @@ table.list tr.clk:hover{background:#f8fafc}
    </div><!-- /studentInputView -->
 
    <div id="studentListView" class="hidden">
-     <h2 style="margin-top:4px">내 제출 기록</h2>
+     <h2 style="margin-top:4px">내 저장 기록</h2>
      <div class="toolbar">
        <input type="text" id="sFilterText" placeholder="환자명 검색" oninput="renderStudentList()">
        <select id="sFilterStatus" onchange="renderStudentList()">
          <option value="">전체 상태</option>
-         <option value="submitted">제출됨(미승인)</option>
+         <option value="draft">임시저장</option><option value="certified">인증저장</option>
          <option value="approved">승인됨</option>
        </select>
        <button class="action light" onclick="loadStudentList()">🔄 새로고침</button>
      </div>
-     <p class="sub" style="color:var(--muted);font-size:13px">※ 승인 전(제출됨) 기록만 수정·삭제할 수 있습니다.</p>
+     <p class="sub" style="color:var(--muted);font-size:13px">※ 관리자 승인 전 기록은 수정·삭제할 수 있습니다.</p>
      <div id="sListContainer"></div>
    </div>
 
@@ -352,19 +356,19 @@ table.list tr.clk:hover{background:#f8fafc}
   <aside class="sidebar">
     <div class="brand">병원 EMR 실습</div>
     <div class="who" id="nurseWho"></div>
-    <button class="nav active" id="navRecords" onclick="showNurseList()">📋 제출 기록 목록</button>
+    <button class="nav active" id="navRecords" onclick="showNurseList()">📋 저장 기록 목록</button>
     <button class="nav" id="navUsers" onclick="showAdmin()">👥 사용자 관리</button>
     <button class="logout" onclick="logout()">⏏ 로그아웃</button>
   </aside>
   <main class="main">
     <div id="nurseListView">
-      <h2 style="margin-top:4px">제출 기록 목록</h2>
+      <h2 style="margin-top:4px">저장 기록 목록</h2>
       <div class="toolbar">
         <input type="text" id="filterText" placeholder="환자명/기록자 검색" oninput="renderList()">
         <select id="filterType" onchange="renderList()"><option value="">전체 기록종류</option></select>
         <select id="filterStatus" onchange="renderList()">
           <option value="">전체 상태</option>
-          <option value="submitted">제출됨(미승인)</option>
+          <option value="draft">임시저장</option><option value="certified">인증저장</option>
           <option value="approved">승인됨</option>
         </select>
         <button class="action light" onclick="loadList()">🔄 새로고침</button>
@@ -541,12 +545,13 @@ const db = {
   },
   async update(id, fields){
     if(USE_CLOUD && !session.guest){
-      const { error } = await sb.from('emr_records').update(fields).eq('id',id);
-      if(error) throw error; return;
+      const { data, error } = await sb.from('emr_records').update(fields).eq('id',id).select('id').single();
+      if(error) throw error; return data;
     }
     const all = JSON.parse(localStorage.getItem(localRecordKey())||"[]");
     const i = all.findIndex(r=>String(r.id)===String(id));
-    if(i>=0){ Object.assign(all[i], fields); localStorage.setItem(localRecordKey(), JSON.stringify(all)); }
+    if(i<0) throw new Error('기록을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
+    Object.assign(all[i], fields); localStorage.setItem(localRecordKey(), JSON.stringify(all));
   },
   async remove(id){
     if(USE_CLOUD && !session.guest){
@@ -655,14 +660,10 @@ function routeAfterLogin(){
     document.getElementById('studentApp').classList.remove('hidden');
     document.getElementById('studentWho').textContent = session.guest ? '게스트 · 이 브라우저에 저장' : `학생 · ${session.name}`;
     if(session.guest){
-      document.getElementById('submitBtn').textContent='저장하기';
-      document.getElementById('myRecordsNav').textContent='📋 내 저장 기록';
-      document.querySelector('#studentListView h2').textContent='내 저장 기록';
       document.querySelector('#studentListView p.sub').textContent='이 브라우저에 저장한 기록을 수정·삭제할 수 있습니다.';
-      document.querySelector('#sFilterStatus option[value=submitted]').textContent='저장됨';
-      document.getElementById('w_time').previousElementSibling.textContent='저장 일시(저장 시 자동)';
     }
     document.getElementById('w_name').value = session.name;
+    updateSaveButton();
   }
 }
 async function logout(){ try{ await auth.signOut(); }catch(e){} location.reload(); }
@@ -701,7 +702,11 @@ buttons.forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const target = btn.getAttribute('data-target');
     // 다른 기록 종류를 누르면 수정 모드 해제
-    if(target!==currentType){ editingId=null; }
+    if(target!==currentType){
+      editingId=null;
+      document.getElementById('w_time').value='';
+      const status=document.getElementById('status'); status.textContent='편집 중'; status.className='pill draft';
+    }
     currentType = target;
     setStudentNavActive(target);
     sections.forEach(sec=>sec.classList.remove('active'));
@@ -719,6 +724,13 @@ function toggleOther(id){
   o.style.display = (s.value==='기타') ? 'block' : 'none';
 }
 
+function updateSaveButton(){
+  const doctor=document.getElementById('w_role').value==='doctor';
+  const button=document.getElementById('submitBtn');
+  button.textContent=doctor ? '인증저장' : '임시저장';
+  button.className=doctor ? 'action ok' : 'action primary';
+}
+
 function clearInputs(){
   if(confirm('입력된 모든 내용을 삭제하시겠습니까?')){
     document.querySelectorAll('#studentApp textarea, #studentApp input[type=text], #studentApp input[type=datetime-local], #studentApp input[type=number], #studentApp select').forEach(el=>{
@@ -728,6 +740,10 @@ function clearInputs(){
     });
     const st=document.getElementById('status'); st.textContent='편집 중'; st.className='pill draft';
     document.getElementById('w_time').value='';
+    document.getElementById('w_role').value='nurse';
+    editingId=null;
+    titleEl.textContent=RECORD_TYPES[currentType];
+    updateSaveButton();
   }
 }
 
@@ -761,40 +777,37 @@ async function submitRecord(){
     age: document.getElementById('p_age').value.trim()
   };
   if(!patient.name){ alert('환자 이름을 입력하세요.'); return; }
+  const writerRole=document.getElementById('w_role').value;
+  if(!['nurse','doctor'].includes(writerRole)){ alert('기록자 직종을 선택하세요.'); return; }
   const section = document.getElementById(currentType);
   const content = serializeSection(section);
   if(content.length===0){ if(!confirm('입력된 기록 내용이 없습니다. 그래도 저장할까요?')) return; }
 
-  const now = new Date();
-  const pad=n=>String(n).padStart(2,'0');
-  const stamp=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-
-  const btn=document.getElementById('submitBtn');
+  const button=document.getElementById('submitBtn');
+  const saveLabel=writerRole==='doctor' ? '인증저장' : '임시저장';
+  const fields={
+    record_type:currentType, record_type_label:RECORD_TYPES[currentType],
+    patient, content, writer_role:writerRole
+  };
   try{
-    btn.disabled = true;
+    button.disabled=true;
     if(editingId){
-      await db.update(editingId, {
-        record_type: currentType,
-        record_type_label: RECORD_TYPES[currentType],
-        patient, content
-      });
-      alert('수정되었습니다.');
-      editingId=null; btn.textContent=session.guest ? '저장하기' : '제출하기';
-      await loadStudentList(); showStudentList();
+      await db.update(editingId,fields);
     } else {
-      await db.insert({
-        record_type: currentType,
-        record_type_label: RECORD_TYPES[currentType],
-        patient, writer_name: session.name, content, status:'submitted'
-      });
-      document.getElementById('w_time').value = stamp;
-      const st=document.getElementById('status'); st.textContent=session.guest ? '저장 완료' : '제출 완료'; st.className='pill submitted';
-      alert(session.guest ? '이 브라우저에 저장되었습니다. 내 저장 기록에서 확인하세요.' : '제출되었습니다. 담당 간호사가 조회/승인할 수 있습니다.');
+      const saved=await db.insert({...fields,writer_name:session.name,status:'submitted'});
+      editingId=saved.id;
+      document.getElementById('w_time').value=fmtDate(saved.created_at);
     }
+    const status=document.getElementById('status');
+    status.textContent=saveLabel+' 완료';
+    status.className=writerRole==='doctor' ? 'pill approved' : 'pill draft';
+    titleEl.textContent=RECORD_TYPES[currentType];
+    alert(saveLabel+'되었습니다.'+(session.guest ? ' 이 브라우저의 내 저장 기록에서 확인하세요.' : ''));
   }catch(e){
     alert('저장 중 오류: '+(e.message||e));
   }finally{
-    btn.disabled = false;
+    button.disabled=false;
+    updateSaveButton();
   }
 }
 
@@ -807,10 +820,15 @@ function resetStudentForm(){
     if(el.id && el.id.endsWith('_other')) el.style.display='none';
   });
   document.getElementById('w_time').value='';
+  document.getElementById('w_role').value='nurse';
+  updateSaveButton();
 }
 function fillSection(type, rec){
   resetStudentForm();
   const p=rec.patient||{};
+  _setVal('w_role',rec.writer_role||'nurse');
+  _setVal('w_time',fmtDate(rec.created_at));
+  updateSaveButton();
   _setVal('p_name',p.name); _setVal('p_mrn',p.mrn); _setVal('p_room',p.room); _setVal('p_sex',p.sex); _setVal('p_age',p.age);
   const map={}; (rec.content||[]).forEach(it=>{ if(!(it.label in map)) map[it.label]=it.value; });
   const section=document.getElementById(type);
@@ -832,7 +850,7 @@ function fillSection(type, rec){
   });
 }
 
-/* ---------- 학생: 내 제출 기록 목록/상세/수정/삭제 ---------- */
+/* ---------- 학생: 내 저장 기록 목록/상세/수정/삭제 ---------- */
 let _myRecords=[];
 function showStudentList(){
   setStudentNavActive('__list__');
@@ -851,13 +869,13 @@ function renderStudentList(){
   const txt=(document.getElementById('sFilterText').value||'').toLowerCase();
   const fs=document.getElementById('sFilterStatus').value;
   const rows=_myRecords.filter(r=>{
-    if(fs && (r.status||'submitted')!==fs) return false;
+    if(fs && recordState(r)!==fs) return false;
     if(txt && !(((r.patient&&r.patient.name)||'').toLowerCase().includes(txt))) return false;
     return true;
   });
   const c=document.getElementById('sListContainer');
-  if(rows.length===0){ c.innerHTML='<div class="muted-empty">'+(session.guest ? '저장한 기록이 없습니다.' : '제출한 기록이 없습니다.')+'</div>'; return; }
-  let html='<table class="list"><thead><tr><th>'+(session.guest ? '저장일시' : '제출일시')+'</th><th>환자명</th><th>기록종류</th><th>상태</th><th>작업</th></tr></thead><tbody>';
+  if(rows.length===0){ c.innerHTML='<div class="muted-empty">저장한 기록이 없습니다.</div>'; return; }
+  let html='<table class="list"><thead><tr><th>작성일시</th><th>환자명</th><th>기록종류</th><th>기록자 직종</th><th>상태</th><th>작업</th></tr></thead><tbody>';
   rows.forEach(r=>{
     const editable=(r.status!=='approved');
     const actions=editable
@@ -867,7 +885,8 @@ function renderStudentList(){
       <td>${fmtDate(r.created_at)}</td>
       <td>${esc((r.patient&&r.patient.name)||'-')}</td>
       <td>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||r.record_type)}</td>
-      <td>${statusPill(r.status)}</td>
+      <td>${r.writer_role==='doctor' ? '의사' : '간호사'}</td>
+      <td>${statusPill(r)}</td>
       <td>${actions}</td>
     </tr>`;
   });
@@ -883,13 +902,14 @@ function openStudentDetail(id){
     ? `<div style="margin-top:16px"><button class="action primary" onclick="editRecord('${r.id}')">✏️ 수정</button> <button class="action warning" onclick="deleteStudentRecord('${r.id}')">🗑 삭제</button></div>`
     : `<div style="margin-top:16px;color:#166534;font-weight:700">✅ ${esc(r.approved_by||'')} 간호사 승인 완료 · ${fmtDate(r.approved_at)} (수정 불가)</div>`;
   document.getElementById('sDetailCard').innerHTML = `
-    <h3>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||'')} ${statusPill(r.status)}</h3>
+    <h3>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||'')} ${statusPill(r)}</h3>
     <div class="kv">
       <div class="k">환자명</div><div class="v">${esc(p.name||'-')}</div>
       <div class="k">병록번호</div><div class="v">${esc(p.mrn||'-')}</div>
       <div class="k">병실</div><div class="v">${esc(p.room||'-')}</div>
       <div class="k">성별/나이</div><div class="v">${esc(p.sex||'-')} / ${esc(p.age||'-')}</div>
-      <div class="k">${session.guest ? '저장일시' : '제출일시'}</div><div class="v">${fmtDate(r.created_at)}</div>
+      <div class="k">기록자 직종</div><div class="v">${r.writer_role==='doctor' ? '의사' : '간호사'}</div>
+      <div class="k">작성일시</div><div class="v">${fmtDate(r.created_at)}</div>
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div class="kv">${contentHtml}</div>
@@ -911,7 +931,7 @@ function editRecord(id){
   const navBtn=[...buttons].find(b=>b.getAttribute('data-target')===currentType);
   titleEl.textContent=(navBtn?navBtn.textContent.trim():(RECORD_TYPES[currentType]||''))+' (수정 중)';
   const st=document.getElementById('status'); st.textContent='수정 중'; st.className='pill draft';
-  document.getElementById('submitBtn').textContent='수정 저장';
+  updateSaveButton();
   showStudentInput();
 }
 async function deleteStudentRecord(id){
@@ -934,9 +954,15 @@ async function loadList(){
   try{ _records = await db.list(); renderList(); }
   catch(e){ c.innerHTML='<div class="muted-empty">불러오기 오류: '+(e.message||e)+'</div>'; }
 }
-function statusPill(s){
-  if(s==='approved') return '<span class="pill approved">승인됨</span>';
-  return '<span class="pill submitted">'+(session.guest ? '저장됨' : '제출됨')+'</span>';
+function recordState(record){
+  if(record.status==='approved') return 'approved';
+  return record.writer_role==='doctor' ? 'certified' : 'draft';
+}
+function statusPill(record){
+  const state=recordState(record);
+  if(state==='approved') return '<span class="pill approved">승인됨</span>';
+  if(state==='certified') return '<span class="pill approved">인증저장</span>';
+  return '<span class="pill draft">임시저장</span>';
 }
 function renderList(){
   const txt=(document.getElementById('filterText').value||'').toLowerCase();
@@ -944,7 +970,7 @@ function renderList(){
   const fs=document.getElementById('filterStatus').value;
   const rows=_records.filter(r=>{
     if(ft && r.record_type!==ft) return false;
-    if(fs && (r.status||'submitted')!==fs) return false;
+    if(fs && recordState(r)!==fs) return false;
     if(txt){
       const hay=((r.patient&&r.patient.name)||'')+' '+(r.writer_name||'');
       if(!hay.toLowerCase().includes(txt)) return false;
@@ -953,7 +979,7 @@ function renderList(){
   });
   const c=document.getElementById('listContainer');
   if(rows.length===0){ c.innerHTML='<div class="muted-empty">표시할 기록이 없습니다.</div>'; return; }
-  let html='<table class="list"><thead><tr><th>제출일시</th><th>환자명</th><th>병록번호</th><th>기록종류</th><th>기록자(학생)</th><th>상태</th></tr></thead><tbody>';
+  let html='<table class="list"><thead><tr><th>작성일시</th><th>환자명</th><th>병록번호</th><th>기록종류</th><th>기록자</th><th>기록자 직종</th><th>상태</th></tr></thead><tbody>';
   rows.forEach(r=>{
     html+=`<tr class="clk" onclick="openDetail('${r.id}')">
       <td>${fmtDate(r.created_at)}</td>
@@ -961,7 +987,8 @@ function renderList(){
       <td>${esc((r.patient&&r.patient.mrn)||'-')}</td>
       <td>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||r.record_type)}</td>
       <td>${esc(r.writer_name||'-')}</td>
-      <td>${statusPill(r.status)}</td>
+      <td>${r.writer_role==='doctor' ? '의사' : '간호사'}</td>
+      <td>${statusPill(r)}</td>
     </tr>`;
   });
   html+='</tbody></table>';
@@ -982,14 +1009,15 @@ function openDetail(id){
     : `<div class="approve-row" style="margin-top:16px"><button class="action ok" onclick="approveRecord('${r.id}')">✅ 승인하기</button></div>`;
 
   document.getElementById('detailCard').innerHTML = `
-    <h3>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||'')} ${statusPill(r.status)}</h3>
+    <h3>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||'')} ${statusPill(r)}</h3>
     <div class="kv">
       <div class="k">환자명</div><div class="v">${esc(p.name||'-')}</div>
       <div class="k">병록번호</div><div class="v">${esc(p.mrn||'-')}</div>
       <div class="k">병실</div><div class="v">${esc(p.room||'-')}</div>
       <div class="k">성별/나이</div><div class="v">${esc(p.sex||'-')} / ${esc(p.age||'-')}</div>
-      <div class="k">기록자(학생)</div><div class="v">${esc(r.writer_name||'-')}</div>
-      <div class="k">제출일시</div><div class="v">${fmtDate(r.created_at)}</div>
+      <div class="k">기록자</div><div class="v">${esc(r.writer_name||'-')}</div>
+      <div class="k">기록자 직종</div><div class="v">${r.writer_role==='doctor' ? '의사' : '간호사'}</div>
+      <div class="k">작성일시</div><div class="v">${fmtDate(r.created_at)}</div>
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div class="kv">${contentHtml}</div>
