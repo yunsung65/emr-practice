@@ -3,38 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>병원 EMR 실습 (학생 입력 / 간호사 조회)</title>
+<title>병원 EMR 실습</title>
 <style>
 :root{--bg:#f3f6fb;--card:#fff;--border:#dfe6ee;--header:#2563eb;--ok:#16a34a;--muted:#5b6472;--warn:#facc15;}
 *{box-sizing:border-box}
 body{margin:0;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:#111}
 .hidden{display:none !important}
-
-/* 로그인 화면 */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.login-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:32px;width:100%;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.08)}
-.login-card h1{font-size:20px;margin:0 0 4px}
-.login-card p.sub{color:var(--muted);font-size:13px;margin:0 0 20px}
-.role-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.role-pick button{padding:18px 10px;border:2px solid var(--border);border-radius:14px;background:#fff;cursor:pointer;font-size:15px;font-weight:700;color:#284b8f}
-.role-pick button.sel{border-color:var(--header);background:#eef4ff}
-.auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
-.auth-tabs button{padding:10px;border:none;border-bottom:2px solid var(--border);background:transparent;cursor:pointer;font-size:14px;font-weight:700;color:var(--muted)}
-.auth-tabs button.sel{color:var(--header);border-bottom-color:var(--header)}
-.auth-msg{font-size:13px;margin-top:12px;min-height:18px}
-.auth-msg.err{color:#b91c1c}
-.auth-msg.ok{color:#166534}
-.login-card label{display:block;font-size:13px;color:#284b8f;font-weight:700;margin:12px 0 4px}
-.login-card input{width:100%;height:calc(2lh + 44px);padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px}
-.login-card .enter{width:100%;margin-top:18px;padding:12px;border:none;border-radius:12px;background:var(--header);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
-.mode-tag{font-size:12px;text-align:center;margin-top:14px;color:var(--muted)}
-.mode-tag b{color:#b45309}
-#userDialog{width:min(440px,calc(100vw - 32px));border:1px solid var(--border);border-radius:14px;padding:24px}
-#userDialog::backdrop{background:rgba(0,0,0,.4)}
-#userForm label{display:block;margin:12px 0 4px}
-#userForm input{width:100%;height:68px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:14px}
-#userForm .actions-row{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
-#userFormError{color:#b91c1c;white-space:pre-wrap}
 
 /* 공통 앱 레이아웃 */
 .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
@@ -88,51 +62,11 @@ table.list tr.clk:hover{background:#f8fafc}
 </head>
 <body>
 
-<!-- ===================== 로그인 ===================== -->
-<div id="loginScreen" class="login-wrap">
-  <div class="login-card">
-    <h1>병원 EMR 실습</h1>
-    <p class="sub">계정으로 로그인하세요. 역할(학생/간호사)은 계정에 따라 자동 적용됩니다.</p>
-
-    <div class="auth-tabs">
-      <button id="tabLogin" class="sel" onclick="switchAuthTab('login')">로그인</button>
-      <button id="tabSignup" onclick="switchAuthTab('signup')">회원가입(학생)</button>
-    </div>
-
-    <!-- 로그인 폼 -->
-    <div id="loginForm">
-      <label>이메일</label>
-      <input type="email" id="li_email" placeholder="example@school.ac.kr" autocomplete="username">
-      <label>비밀번호</label>
-      <input type="password" id="li_pw" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-      <button class="enter" onclick="doLogin()">로그인</button>
-    </div>
-
-    <!-- 회원가입 폼 (학생 전용) -->
-    <div id="signupForm" class="hidden">
-      <label>이름</label>
-      <input type="text" id="su_name" placeholder="예: 홍길동">
-      <label>이메일</label>
-      <input type="email" id="su_email" placeholder="example@school.ac.kr" autocomplete="username">
-      <label>비밀번호 (6자 이상)</label>
-      <input type="password" id="su_pw" placeholder="비밀번호" autocomplete="new-password" onkeydown="if(event.key==='Enter')doSignup()">
-      <button class="enter" onclick="doSignup()">학생으로 가입</button>
-      <p class="sub" style="margin-top:10px">간호사 계정은 가입할 수 없습니다. 담당자(교수)에게 권한 요청하세요.</p>
-    </div>
-
-    <button class="enter" onclick="enterGuest()">게스트로 시작하기</button>
-    <p class="mode-tag">게스트 기록은 이 브라우저에 저장됩니다. 브라우저 데이터를 삭제하면 기록도 삭제됩니다.</p>
-
-    <div id="authMsg" class="auth-msg"></div>
-    <div class="mode-tag" id="modeTag"></div>
-  </div>
-</div>
-
 <!-- ===================== 학생: 기록 입력 ===================== -->
-<div id="studentApp" class="app hidden">
+<div id="studentApp" class="app">
   <aside class="sidebar">
     <div class="brand">병원 EMR 실습</div>
-    <div class="who" id="studentWho"></div>
+    <div class="who">학생 실습 · 이 브라우저에 저장</div>
     <div class="navgroup">기록 작성</div>
     <button class="nav active" data-target="outpatient_initial">외래초진기록</button>
     <button class="nav" data-target="outpatient_progress">외래경과기록</button>
@@ -144,7 +78,6 @@ table.list tr.clk:hover{background:#f8fafc}
     <button class="nav" data-target="anesthesia_record">마취기록</button>
     <div class="navgroup">내 기록</div>
     <button class="nav" id="myRecordsNav" onclick="showStudentList()">📋 내 저장 기록</button>
-    <button class="logout" onclick="logout()">⏏ 로그아웃</button>
   </aside>
 
   <main class="main">
@@ -165,7 +98,7 @@ table.list tr.clk:hover{background:#f8fafc}
         </div>
         <div style="grid-column: span 2">
           <label>기록자 이름</label>
-          <input type="text" id="w_name" readonly>
+          <input type="text" id="w_name">
         </div>
         <div style="grid-column: span 4"><label for="w_time">작성일시(임시저장 시 자동)</label><input type="text" id="w_time" readonly></div>
       </div>
@@ -340,7 +273,7 @@ table.list tr.clk:hover{background:#f8fafc}
        </select>
        <button class="action light" onclick="loadStudentList()">🔄 새로고침</button>
      </div>
-     <p class="sub" style="color:var(--muted);font-size:13px">※ 관리자 승인 전 기록은 수정·삭제할 수 있습니다.</p>
+     <p class="sub" style="color:var(--muted);font-size:13px">기록은 이 브라우저에 저장됩니다. 브라우저 데이터를 삭제하면 기록도 삭제됩니다.</p>
      <div id="sListContainer"></div>
    </div>
 
@@ -353,89 +286,7 @@ table.list tr.clk:hover{background:#f8fafc}
   </main>
 </div>
 
-<!-- ===================== 간호사: 조회/승인 ===================== -->
-<div id="nurseApp" class="app hidden">
-  <aside class="sidebar">
-    <div class="brand">병원 EMR 실습</div>
-    <div class="who" id="nurseWho"></div>
-    <button class="nav active" id="navRecords" onclick="showNurseList()">📋 저장 기록 목록</button>
-    <button class="nav" id="navUsers" onclick="showAdmin()">👥 사용자 관리</button>
-    <button class="logout" onclick="logout()">⏏ 로그아웃</button>
-  </aside>
-  <main class="main">
-    <div id="nurseListView">
-      <h2 style="margin-top:4px">저장 기록 목록</h2>
-      <div class="toolbar">
-        <input type="text" id="filterText" placeholder="환자명/기록자 검색" oninput="renderList()">
-        <select id="filterType" onchange="renderList()"><option value="">전체 기록종류</option></select>
-        <select id="filterStatus" onchange="renderList()">
-          <option value="">전체 상태</option>
-          <option value="draft">임시저장</option><option value="certified">인증저장</option>
-          <option value="approved">승인됨</option>
-        </select>
-        <button class="action light" onclick="loadList()">🔄 새로고침</button>
-      </div>
-      <div id="listContainer"></div>
-    </div>
-
-    <div id="nurseDetailView" class="hidden">
-      <button class="action light back-btn" onclick="showNurseList()">← 목록으로</button>
-      <div class="detail-card" id="detailCard"></div>
-    </div>
-
-    <div id="adminView" class="hidden">
-      <h2 style="margin-top:4px">사용자 관리</h2>
-      <div class="toolbar">
-        <input type="text" id="uFilterText" placeholder="이름/이메일 검색" oninput="renderUsers()">
-        <select id="uFilterRole" onchange="renderUsers()">
-          <option value="">전체 역할</option>
-          <option value="student">학생</option>
-          <option value="nurse">간호사</option>
-        </select>
-        <button class="action primary" onclick="openUserForm()">사용자 추가</button>
-        <button class="action light" onclick="loadUsers()">🔄 새로고침</button>
-      </div>
-      <p class="sub" style="color:var(--muted);font-size:13px">이름·이메일·역할을 수정하거나 계정을 삭제할 수 있습니다. 계정을 삭제해도 작성된 실습 기록은 보관됩니다. 본인 계정은 변경할 수 없습니다.</p>
-      <div id="usersContainer"></div>
-    </div>
-
-    <div class="footer">© 병원 EMR 실습 — 담당 간호사 조회/승인</div>
-  </main>
-</div>
-
-<dialog id="userDialog" aria-labelledby="userFormTitle">
-  <form id="userForm" onsubmit="saveUser(event)">
-    <h2 id="userFormTitle">사용자 추가</h2>
-    <input type="hidden" id="userId">
-    <label for="userName">이름</label>
-    <input type="text" id="userName" required maxlength="100" autocomplete="off">
-    <label for="userEmail">이메일</label>
-    <input type="email" id="userEmail" required maxlength="254" autocomplete="off">
-    <label for="userRole">역할</label>
-    <select id="userRole"><option value="student">학생</option><option value="nurse">간호사(관리자)</option></select>
-    <div id="userPasswordField">
-      <label for="userPassword">초기 비밀번호 (6자 이상)</label>
-      <input type="password" id="userPassword" minlength="6" maxlength="256" autocomplete="new-password">
-    </div>
-    <p id="userFormError" role="alert"></p>
-    <div class="actions-row">
-      <button type="button" class="action light" onclick="document.getElementById('userDialog').close()">취소</button>
-      <button type="submit" id="userSaveBtn" class="action primary">추가</button>
-    </div>
-  </form>
-</dialog>
-
-<!-- Supabase JS (선택). 키 미설정 시 데모(로컬) 모드 -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-/* =====================================================================
-   설정: 아래 두 값을 채우면 실제 클라우드 공유 모드로 작동합니다.
-   비워두면 이 컴퓨터의 브라우저에만 저장되는 "데모(로컬) 모드"로 작동.
-   (Supabase 대시보드 > Project Settings > API 에서 확인)
-===================================================================== */
-const SUPABASE_URL = "https://bjyqqymryuftawolifgt.supabase.co";        // 예: https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = "sb_publishable_i8cbKDlEXeUzMgEkrbTLVg_uNUgcqk5";   // 예: eyJhbGciOi...
-
 const RECORD_TYPES = {
   outpatient_initial:"외래초진기록", outpatient_progress:"외래경과기록",
   er_record:"응급기록", admission_initial:"입원초진기록",
@@ -443,81 +294,12 @@ const RECORD_TYPES = {
   surgery_record:"수술기록", anesthesia_record:"마취기록"
 };
 
-const USE_CLOUD = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
-let sb = null;
-if(USE_CLOUD && window.supabase){ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
-
-let session = { userId:null, role:'student', name:'', email:'' };
-
-/* =====================================================================
-   인증 계층
-   - 회원가입은 항상 학생으로만 생성됨 (역할은 클라이언트가 정할 수 없음)
-   - 클라우드: 역할은 서버의 profiles 테이블 + RLS로 강제됨
-   - 데모: 설정 부담 없이 UI 흐름만 확인. (보안 강제는 클라우드에서만)
-===================================================================== */
-const LS_USERS = "emr_users_v1";   // 데모 전용 가짜 계정
-const LS_KEY   = "emr_records_v1"; // 데모 전용 기록
-
-function localRecordKey(){ return session.guest ? "emr_guest_records_v1" : LS_KEY; }
-
-function _demoUsers(){ return JSON.parse(localStorage.getItem(LS_USERS)||"[]"); }
-function _saveDemoUsers(u){ localStorage.setItem(LS_USERS, JSON.stringify(u)); }
-function _seedDemo(){
-  let u=_demoUsers();
-  if(!u.some(x=>x.role==='nurse')){
-    u.push({email:'nurse@demo', pw:'nurse123', name:'데모 간호사', role:'nurse', id:'demo-nurse'});
-    _saveDemoUsers(u);
-  }
-}
-
-const auth = {
-  async signUp(name, email, password){
-    if(USE_CLOUD){
-      const { data, error } = await sb.auth.signUp({
-        email, password, options:{ data:{ full_name:name } }
-      });
-      if(error) throw error;
-      // 이메일 확인이 꺼져 있으면 즉시 세션 생성됨. 켜져 있으면 확인 후 로그인 필요.
-      return { needsConfirm: !data.session };
-    }
-    let u=_demoUsers();
-    if(u.some(x=>x.email===email)) throw new Error('이미 가입된 이메일입니다.');
-    u.push({email, pw:password, name, role:'student', id:'demo-'+Math.random().toString(36).slice(2)});
-    _saveDemoUsers(u);
-    return { needsConfirm:false };
-  },
-  async signIn(email, password){
-    if(USE_CLOUD){
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if(error) throw error;
-      return await auth.loadProfile();
-    }
-    const u=_demoUsers().find(x=>x.email===email && x.pw===password);
-    if(!u) throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.');
-    session = { userId:u.id, role:u.role, name:u.name, email:u.email };
-    return session;
-  },
-  async loadProfile(){
-    // 클라우드 전용: 현재 사용자 + profiles에서 역할 조회
-    const { data:{ user } } = await sb.auth.getUser();
-    if(!user) throw new Error('로그인이 필요합니다.');
-    const { data:prof, error } = await sb.from('profiles').select('full_name, role').eq('id', user.id).single();
-    if(error) throw new Error('프로필을 불러오지 못했습니다: '+error.message);
-    if(session.guest) return session;
-    session = { userId:user.id, role:prof.role||'student', name:prof.full_name||user.email, email:user.email };
-    return session;
-  },
-  async signOut(){ if(USE_CLOUD && sb && !session.guest){ await sb.auth.signOut(); } }
-};
+const session = {userId:'guest', role:'student', guest:true};
+function localRecordKey(){ return 'emr_guest_records_v1'; }
 
 /* ---------- 데이터 계층 ---------- */
 const db = {
   async insert(rec){
-    if(USE_CLOUD && !session.guest){
-      rec.writer_id = session.userId;
-      const { data, error } = await sb.from('emr_records').insert(rec).select().single();
-      if(error) throw error; return data;
-    }
     const all = JSON.parse(localStorage.getItem(localRecordKey())||"[]");
     rec.id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()));
     rec.created_at = new Date().toISOString();
@@ -526,162 +308,22 @@ const db = {
     return rec;
   },
   async list(){
-    if(USE_CLOUD && !session.guest){
-      // 학생은 RLS로 본인 기록만, 간호사는 전체가 반환됨
-      const { data, error } = await sb.from('emr_records').select('*').order('written_at',{ascending:false});
-      if(error) throw error; return data||[];
-    }
     let all = JSON.parse(localStorage.getItem(localRecordKey())||"[]");
     if(session.role!=='nurse'){ all = all.filter(r=>r.writer_id===session.userId); }
     return all.sort((a,b)=> (b.written_at||b.created_at||"").localeCompare(a.written_at||a.created_at||""));
   },
-  async approve(id, by){
-    const patch = { status:'approved', approved_by:by, approved_at:new Date().toISOString() };
-    if(USE_CLOUD && !session.guest){
-      const { error } = await sb.from('emr_records').update(patch).eq('id',id);
-      if(error) throw error; return;
-    }
-    const all = JSON.parse(localStorage.getItem(localRecordKey())||"[]");
-    const i = all.findIndex(r=>r.id===id);
-    if(i>=0){ Object.assign(all[i], patch); localStorage.setItem(localRecordKey(), JSON.stringify(all)); }
-  },
   async update(id, fields){
-    if(USE_CLOUD && !session.guest){
-      const { data, error } = await sb.from('emr_records').update(fields).eq('id',id).select('id').single();
-      if(error) throw error; return data;
-    }
     const all = JSON.parse(localStorage.getItem(localRecordKey())||"[]");
     const i = all.findIndex(r=>String(r.id)===String(id));
     if(i<0) throw new Error('기록을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
     Object.assign(all[i], fields); localStorage.setItem(localRecordKey(), JSON.stringify(all));
   },
   async remove(id){
-    if(USE_CLOUD && !session.guest){
-      const { error } = await sb.from('emr_records').delete().eq('id',id);
-      if(error) throw error; return;
-    }
     let all = JSON.parse(localStorage.getItem(localRecordKey())||"[]");
     all = all.filter(r=>String(r.id)!==String(id));
     localStorage.setItem(localRecordKey(), JSON.stringify(all));
   }
 };
-
-/* ---------- 관리(간호사 전용) ---------- */
-const admin = {
-  async listUsers(){
-    if(USE_CLOUD){
-      const { data, error } = await sb.from('profiles').select('id, full_name, email, role, created_at').order('created_at',{ascending:true});
-      if(error) throw error;
-      return (data||[]).map(u=>({id:u.id, name:u.full_name, role:u.role, email:u.email||''}));
-    }
-    return _demoUsers().map(u=>({id:u.id, name:u.name, role:u.role, email:u.email}));
-  },
-  async request(body){
-    const { data, error } = await sb.functions.invoke('admin-users', { body });
-    if(error){
-      let message='사용자 정보를 처리하지 못했습니다. 다시 로그인하거나 잠시 후 다시 시도하세요.';
-      try{ message=(await error.context.json()).error||message; }catch(e){}
-      throw new Error(message);
-    }
-    return data;
-  },
-  async saveUser(user){
-    if(USE_CLOUD) return await admin.request({ ...user, action:user.id ? 'update' : 'create' });
-    const users=_demoUsers();
-    if(users.some(u=>u.id!==user.id && u.email.toLowerCase()===user.email.toLowerCase())){
-      throw new Error('이미 등록된 이메일입니다.');
-    }
-    if(user.id){
-      const existing=users.find(u=>u.id===user.id);
-      if(!existing) throw new Error('사용자를 찾을 수 없습니다.');
-      Object.assign(existing, {name:user.name,email:user.email,role:user.role});
-    } else {
-      users.push({id:crypto.randomUUID(),name:user.name,email:user.email,role:user.role,pw:user.password});
-    }
-    _saveDemoUsers(users);
-  },
-  async removeUser(id){
-    if(USE_CLOUD) return await admin.request({ action:'delete', id });
-    _saveDemoUsers(_demoUsers().filter(u=>u.id!==id));
-  }
-};
-
-/* ---------- 로그인 UI ---------- */
-function enterGuest(){
-  session = { userId:'guest', role:'student', name:'게스트', email:'', guest:true };
-  routeAfterLogin();
-}
-function switchAuthTab(t){
-  document.getElementById('tabLogin').classList.toggle('sel', t==='login');
-  document.getElementById('tabSignup').classList.toggle('sel', t==='signup');
-  document.getElementById('loginForm').classList.toggle('hidden', t!=='login');
-  document.getElementById('signupForm').classList.toggle('hidden', t!=='signup');
-  setAuthMsg('');
-}
-function setAuthMsg(msg, ok){
-  const el=document.getElementById('authMsg');
-  el.textContent=msg||''; el.className='auth-msg'+(msg?(ok?' ok':' err'):'');
-}
-async function doLogin(){
-  const email=document.getElementById('li_email').value.trim();
-  const pw=document.getElementById('li_pw').value;
-  if(!email||!pw){ setAuthMsg('이메일과 비밀번호를 입력하세요.'); return; }
-  setAuthMsg('로그인 중…', true);
-  try{
-    await auth.signIn(email, pw);
-    routeAfterLogin();
-  }catch(e){ setAuthMsg(e.message||String(e)); }
-}
-async function doSignup(){
-  const name=document.getElementById('su_name').value.trim();
-  const email=document.getElementById('su_email').value.trim();
-  const pw=document.getElementById('su_pw').value;
-  if(!name||!email||!pw){ setAuthMsg('모든 항목을 입력하세요.'); return; }
-  if(pw.length<6){ setAuthMsg('비밀번호는 6자 이상이어야 합니다.'); return; }
-  setAuthMsg('가입 중…', true);
-  try{
-    const r=await auth.signUp(name, email, pw);
-    if(r.needsConfirm){
-      setAuthMsg('가입 완료. 이메일 인증 후 로그인하세요.', true);
-      switchAuthTab('login');
-    } else {
-      setAuthMsg('가입 완료. 로그인 해주세요.', true);
-      document.getElementById('li_email').value=email;
-      switchAuthTab('login');
-    }
-  }catch(e){ setAuthMsg(e.message||String(e)); }
-}
-function routeAfterLogin(){
-  document.getElementById('loginScreen').classList.add('hidden');
-  if(session.role==='nurse'){
-    document.getElementById('nurseApp').classList.remove('hidden');
-    document.getElementById('nurseWho').textContent = `담당 간호사 · ${session.name}`;
-    initNurseFilters();
-    loadList();
-  } else {
-    document.getElementById('studentApp').classList.remove('hidden');
-    document.getElementById('studentWho').textContent = session.guest ? '게스트 · 이 브라우저에 저장' : `학생 · ${session.name}`;
-    if(session.guest){
-      document.querySelector('#studentListView p.sub').textContent='이 브라우저에 저장한 기록을 수정·삭제할 수 있습니다.';
-    }
-    document.getElementById('w_name').value = session.name;
-  }
-}
-async function logout(){ try{ await auth.signOut(); }catch(e){} location.reload(); }
-
-window.addEventListener('DOMContentLoaded', async ()=>{
-  if(!USE_CLOUD) _seedDemo();
-  document.getElementById('modeTag').innerHTML = USE_CLOUD
-    ? '클라우드 모드 (Supabase 연결됨) · 역할은 서버에서 강제됩니다.'
-    : '<b>데모 모드</b> — 이 컴퓨터에만 저장. 데모 간호사 계정: nurse@demo / nurse123';
-  // 클라우드: 이미 로그인된 세션이 있으면 자동 진입
-  if(USE_CLOUD && sb){
-    try{
-      const { data:{ session:s } } = await sb.auth.getSession();
-      if(s){ await auth.loadProfile(); routeAfterLogin(); }
-    }catch(e){ /* 무시: 로그인 화면 유지 */ }
-  }
-});
 
 /* ---------- 학생: 섹션 전환 / 뷰 전환 ---------- */
 const buttons = document.querySelectorAll('#studentApp .sidebar button.nav[data-target]');
@@ -787,14 +429,14 @@ async function submitRecord(saveType='draft'){
   const saveLabel=saveType==='certified' ? '인증저장' : '임시저장';
   const fields={
     record_type:currentType, record_type_label:RECORD_TYPES[currentType],
-    patient, content, writer_role:writerRole, save_type:saveType, written_at:writtenAt
+    patient, content, writer_name:document.getElementById('w_name').value.trim()||'학생', writer_role:writerRole, save_type:saveType, written_at:writtenAt
   };
   try{
     buttons.forEach(button=>button.disabled=true);
     if(editingId){
       await db.update(editingId,fields);
     } else {
-      const saved=await db.insert({...fields,writer_name:session.name,status:'submitted'});
+      const saved=await db.insert({...fields,status:'submitted'});
       editingId=saved.id;
     }
     currentWrittenAt=writtenAt;
@@ -826,6 +468,7 @@ function resetStudentForm(){
 function fillSection(type, rec){
   resetStudentForm();
   const p=rec.patient||{};
+  _setVal('w_name',rec.writer_name||'');
   _setVal('w_role','nurse');
   currentWrittenAt=rec.written_at||rec.created_at||null;
   _setVal('w_time',fmtDate(currentWrittenAt));
@@ -939,20 +582,6 @@ async function deleteStudentRecord(id){
   catch(e){ alert('삭제 오류: '+(e.message||e)); }
 }
 
-/* ---------- 간호사: 목록/상세/승인 ---------- */
-let _records = [];
-function initNurseFilters(){
-  const sel=document.getElementById('filterType');
-  Object.entries(RECORD_TYPES).forEach(([k,v])=>{
-    const o=document.createElement('option'); o.value=k; o.textContent=v; sel.appendChild(o);
-  });
-}
-async function loadList(){
-  const c=document.getElementById('listContainer');
-  c.innerHTML='<div class="muted-empty">불러오는 중…</div>';
-  try{ _records = await db.list(); renderList(); }
-  catch(e){ c.innerHTML='<div class="muted-empty">불러오기 오류: '+(e.message||e)+'</div>'; }
-}
 function recordState(record){
   if(record.status==='approved') return 'approved';
   return record.save_type||(record.writer_role==='doctor' ? 'certified' : 'draft');
@@ -963,176 +592,6 @@ function statusPill(record){
   if(state==='certified') return '<span class="pill approved">인증저장</span>';
   return '<span class="pill draft">임시저장</span>';
 }
-function renderList(){
-  const txt=(document.getElementById('filterText').value||'').toLowerCase();
-  const ft=document.getElementById('filterType').value;
-  const fs=document.getElementById('filterStatus').value;
-  const rows=_records.filter(r=>{
-    if(ft && r.record_type!==ft) return false;
-    if(fs && recordState(r)!==fs) return false;
-    if(txt){
-      const hay=((r.patient&&r.patient.name)||'')+' '+(r.writer_name||'');
-      if(!hay.toLowerCase().includes(txt)) return false;
-    }
-    return true;
-  });
-  const c=document.getElementById('listContainer');
-  if(rows.length===0){ c.innerHTML='<div class="muted-empty">표시할 기록이 없습니다.</div>'; return; }
-  let html='<table class="list"><thead><tr><th>작성일시</th><th>환자명</th><th>병록번호</th><th>기록종류</th><th>기록자</th><th>기록자 직종</th><th>상태</th></tr></thead><tbody>';
-  rows.forEach(r=>{
-    html+=`<tr class="clk" onclick="openDetail('${r.id}')">
-      <td>${fmtDate(r.written_at||r.created_at)}</td>
-      <td>${esc((r.patient&&r.patient.name)||'-')}</td>
-      <td>${esc((r.patient&&r.patient.mrn)||'-')}</td>
-      <td>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||r.record_type)}</td>
-      <td>${esc(r.writer_name||'-')}</td>
-      <td>간호사</td>
-      <td>${statusPill(r)}</td>
-    </tr>`;
-  });
-  html+='</tbody></table>';
-  c.innerHTML=html;
-}
-function openDetail(id){
-  const r=_records.find(x=>String(x.id)===String(id));
-  if(!r) return;
-  const p=r.patient||{};
-  let contentHtml='';
-  (r.content||[]).forEach(it=>{
-    contentHtml+=`<div class="k">${esc(it.label)}</div><div class="v">${esc(it.value)}</div>`;
-  });
-  if(!contentHtml) contentHtml='<div class="k">내용</div><div class="v">(입력된 항목 없음)</div>';
-  const approved = (r.status==='approved');
-  const approveRow = approved
-    ? `<div class="approve-row" style="margin-top:16px;color:#166534;font-weight:700">✅ ${esc(r.approved_by||'')} 간호사 승인 완료 · ${fmtDate(r.approved_at)}</div>`
-    : `<div class="approve-row" style="margin-top:16px"><button class="action ok" onclick="approveRecord('${r.id}')">✅ 승인하기</button></div>`;
-
-  document.getElementById('detailCard').innerHTML = `
-    <h3>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||'')} ${statusPill(r)}</h3>
-    <div class="kv">
-      <div class="k">환자명</div><div class="v">${esc(p.name||'-')}</div>
-      <div class="k">병록번호</div><div class="v">${esc(p.mrn||'-')}</div>
-      <div class="k">병실</div><div class="v">${esc(p.room||'-')}</div>
-      <div class="k">성별/나이</div><div class="v">${esc(p.sex||'-')} / ${esc(p.age||'-')}</div>
-      <div class="k">기록자</div><div class="v">${esc(r.writer_name||'-')}</div>
-      <div class="k">기록자 직종</div><div class="v">간호사</div>
-      <div class="k">작성일시</div><div class="v">${fmtDate(r.written_at||r.created_at)}</div>
-    </div>
-    <hr style="border:none;border-top:1px solid var(--border)">
-    <div class="kv">${contentHtml}</div>
-    ${approveRow}
-    <div style="margin-top:10px">
-      <button class="action light" onclick="window.print()">🖨️ 인쇄</button>
-      <button class="action warning" onclick="deleteRecordNurse('${r.id}')">🗑 삭제</button>
-    </div>
-  `;
-  document.getElementById('nurseListView').classList.add('hidden');
-  document.getElementById('nurseDetailView').classList.remove('hidden');
-}
-async function approveRecord(id){
-  if(!confirm('이 기록을 승인하시겠습니까?')) return;
-  try{
-    await db.approve(id, session.name);
-    await loadList();
-    openDetail(id);
-  }catch(e){ alert('승인 중 오류: '+(e.message||e)); }
-}
-async function deleteRecordNurse(id){
-  if(!confirm('이 기록을 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
-  try{ await db.remove(id); await loadList(); showNurseList(); }
-  catch(e){ alert('삭제 오류: '+(e.message||e)); }
-}
-function showNurseList(){
-  document.getElementById('navRecords').classList.add('active');
-  document.getElementById('navUsers').classList.remove('active');
-  document.getElementById('nurseDetailView').classList.add('hidden');
-  document.getElementById('adminView').classList.add('hidden');
-  document.getElementById('nurseListView').classList.remove('hidden');
-}
-
-/* ---------- 간호사: 사용자 관리 ---------- */
-let _users=[];
-function showAdmin(){
-  document.getElementById('navRecords').classList.remove('active');
-  document.getElementById('navUsers').classList.add('active');
-  document.getElementById('nurseListView').classList.add('hidden');
-  document.getElementById('nurseDetailView').classList.add('hidden');
-  document.getElementById('adminView').classList.remove('hidden');
-  loadUsers();
-}
-async function loadUsers(){
-  const c=document.getElementById('usersContainer');
-  c.innerHTML='<div class="muted-empty">불러오는 중…</div>';
-  try{ _users=await admin.listUsers(); renderUsers(); }
-  catch(e){ c.innerHTML='<div class="muted-empty">불러오기 오류: '+esc(e.message||e)+'</div>'; }
-}
-function renderUsers(){
-  const txt=(document.getElementById('uFilterText').value||'').toLowerCase();
-  const fr=document.getElementById('uFilterRole').value;
-  const rows=_users.filter(u=>{
-    if(fr && u.role!==fr) return false;
-    if(txt && !((((u.name||'')+' '+(u.email||'')).toLowerCase()).includes(txt))) return false;
-    return true;
-  });
-  const c=document.getElementById('usersContainer');
-  if(rows.length===0){ c.innerHTML='<div class="muted-empty">사용자가 없습니다.</div>'; return; }
-  let html='<table class="list"><thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>작업</th></tr></thead><tbody>';
-  rows.forEach(u=>{
-    const rolePill=u.role==='nurse' ? '<span class="pill approved">간호사</span>' : '<span class="pill submitted">학생</span>';
-    const actions=u.id===session.userId
-      ? '<span style="color:var(--muted)">본인</span>'
-      : `<button class="action light" onclick="openUserForm('${u.id}')">수정</button> <button class="action warning" onclick="deleteUser('${u.id}',this)">삭제</button>`;
-    html+=`<tr><td>${esc(u.name||'-')}</td><td>${esc(u.email||'-')}</td><td>${rolePill}</td><td>${actions}</td></tr>`;
-  });
-  html+='</tbody></table>'; c.innerHTML=html;
-}
-function openUserForm(id){
-  const user=id ? _users.find(u=>u.id===id) : null;
-  if(id && (!user || id===session.userId)) return;
-  document.getElementById('userForm').reset();
-  document.getElementById('userId').value=id||'';
-  document.getElementById('userName').value=user ? user.name : '';
-  document.getElementById('userEmail').value=user ? user.email : '';
-  document.getElementById('userRole').value=user ? user.role : 'student';
-  document.getElementById('userPasswordField').classList.toggle('hidden',!!user);
-  document.getElementById('userPassword').required=!user;
-  document.getElementById('userFormTitle').textContent=user ? '사용자 수정' : '사용자 추가';
-  document.getElementById('userSaveBtn').textContent=user ? '저장' : '추가';
-  document.getElementById('userFormError').textContent='';
-  document.getElementById('userDialog').showModal();
-}
-async function saveUser(event){
-  event.preventDefault();
-  const button=document.getElementById('userSaveBtn');
-  const error=document.getElementById('userFormError');
-  const user={
-    id:document.getElementById('userId').value,
-    name:document.getElementById('userName').value.trim(),
-    email:document.getElementById('userEmail').value.trim().toLowerCase(),
-    role:document.getElementById('userRole').value
-  };
-  if(!user.id) user.password=document.getElementById('userPassword').value;
-  if(!user.name){ error.textContent='이름을 입력하세요.'; return; }
-  try{
-    button.disabled=true; error.textContent='';
-    await admin.saveUser(user);
-    document.getElementById('userPassword').value='';
-    document.getElementById('userDialog').close();
-    await loadUsers();
-  }catch(e){ error.textContent=e.message||String(e); }
-  finally{ button.disabled=false; }
-}
-async function deleteUser(id,button){
-  const user=_users.find(u=>u.id===id);
-  if(!user || id===session.userId) return;
-  if(!confirm(`${user.name} (${user.email}) 계정을 삭제하시겠습니까? 로그인할 수 없게 되며, 작성된 실습 기록은 보관됩니다.`)) return;
-  try{
-    button.disabled=true;
-    await admin.removeUser(id);
-    await loadUsers();
-  }catch(e){ button.disabled=false; alert('삭제 오류: '+(e.message||e)); }
-}
-
 /* ---------- 유틸 ---------- */
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function fmtDate(iso){
