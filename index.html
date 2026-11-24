@@ -167,7 +167,7 @@ table.list tr.clk:hover{background:#f8fafc}
           <label>기록자 이름</label>
           <input type="text" id="w_name" readonly>
         </div>
-        <div style="grid-column: span 4"><label for="w_time">작성일시</label><input type="datetime-local" id="w_time" required></div>
+        <div style="grid-column: span 4"><label for="w_time">작성일시(임시저장 시 자동)</label><input type="text" id="w_time" readonly></div>
       </div>
       <div class="actions-row" style="display:flex;justify-content:flex-end;margin-top:12px;gap:8px">
         <button class="action light" onclick="window.print()">🖨️ 인쇄</button>
@@ -689,6 +689,7 @@ const sections = document.querySelectorAll('#studentApp .section');
 const titleEl = document.getElementById('recordTitle');
 let currentType = 'outpatient_initial';
 let editingId = null;   // 수정 중인 기록 id (null=새 작성)
+let currentWrittenAt = null;
 
 function setStudentNavActive(target){
   buttons.forEach(b=>b.classList.toggle('active', b.getAttribute('data-target')===target));
@@ -705,6 +706,7 @@ buttons.forEach(btn=>{
     // 다른 기록 종류를 누르면 수정 모드 해제
     if(target!==currentType){
       editingId=null;
+      currentWrittenAt=null;
       document.getElementById('w_time').value='';
       const status=document.getElementById('status'); status.textContent='편집 중'; status.className='pill draft';
     }
@@ -736,6 +738,7 @@ function clearInputs(){
     document.getElementById('w_time').value='';
     document.getElementById('w_role').value='nurse';
     editingId=null;
+    currentWrittenAt=null;
     titleEl.textContent=RECORD_TYPES[currentType];
   }
 }
@@ -773,9 +776,8 @@ async function submitRecord(saveType='draft'){
   const writerRole=document.getElementById('w_role').value;
   if(writerRole!=='nurse'){ alert('기록자 직종을 선택하세요.'); return; }
   if(!['draft','certified'].includes(saveType)){ alert('저장 방식을 선택하세요.'); return; }
-  const writtenValue=document.getElementById('w_time').value;
-  const writtenDate=new Date(writtenValue);
-  if(!writtenValue || !Number.isFinite(writtenDate.getTime())){ alert('작성일시를 입력하세요.'); return; }
+  if(saveType==='certified' && (!editingId || !currentWrittenAt)){ alert('임시저장된 기록을 먼저 열어 확인하세요.'); return; }
+  const writtenAt=saveType==='draft' ? new Date().toISOString() : currentWrittenAt;
   const section = document.getElementById(currentType);
   const content = serializeSection(section);
   if(content.length===0){ if(!confirm('입력된 기록 내용이 없습니다. 그래도 저장할까요?')) return; }
@@ -785,7 +787,7 @@ async function submitRecord(saveType='draft'){
   const saveLabel=saveType==='certified' ? '인증저장' : '임시저장';
   const fields={
     record_type:currentType, record_type_label:RECORD_TYPES[currentType],
-    patient, content, writer_role:writerRole, save_type:saveType, written_at:writtenDate.toISOString()
+    patient, content, writer_role:writerRole, save_type:saveType, written_at:writtenAt
   };
   try{
     buttons.forEach(button=>button.disabled=true);
@@ -795,6 +797,8 @@ async function submitRecord(saveType='draft'){
       const saved=await db.insert({...fields,writer_name:session.name,status:'submitted'});
       editingId=saved.id;
     }
+    currentWrittenAt=writtenAt;
+    document.getElementById('w_time').value=fmtDate(writtenAt);
     const status=document.getElementById('status');
     status.textContent=saveLabel+' 완료';
     status.className=saveType==='certified' ? 'pill approved' : 'pill draft';
@@ -816,13 +820,15 @@ function resetStudentForm(){
     if(el.id && el.id.endsWith('_other')) el.style.display='none';
   });
   document.getElementById('w_time').value='';
+  currentWrittenAt=null;
   document.getElementById('w_role').value='nurse';
 }
 function fillSection(type, rec){
   resetStudentForm();
   const p=rec.patient||{};
   _setVal('w_role','nurse');
-  _setVal('w_time',fmtDate(rec.written_at||rec.created_at).replace(' ','T'));
+  currentWrittenAt=rec.written_at||rec.created_at||null;
+  _setVal('w_time',fmtDate(currentWrittenAt));
   _setVal('p_name',p.name); _setVal('p_mrn',p.mrn); _setVal('p_room',p.room); _setVal('p_sex',p.sex); _setVal('p_age',p.age);
   const map={}; (rec.content||[]).forEach(it=>{ if(!(it.label in map)) map[it.label]=it.value; });
   const section=document.getElementById(type);
