@@ -29,6 +29,12 @@ body{margin:0;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:#
 .login-card .enter{width:100%;margin-top:18px;padding:12px;border:none;border-radius:12px;background:var(--header);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
 .mode-tag{font-size:12px;text-align:center;margin-top:14px;color:var(--muted)}
 .mode-tag b{color:#b45309}
+#userDialog{width:min(440px,calc(100vw - 32px));border:1px solid var(--border);border-radius:14px;padding:24px}
+#userDialog::backdrop{background:rgba(0,0,0,.4)}
+#userForm label{display:block;margin:12px 0 4px}
+#userForm input{width:100%;height:68px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;font-size:14px}
+#userForm .actions-row{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+#userFormError{color:#b91c1c;white-space:pre-wrap}
 
 /* 공통 앱 레이아웃 */
 .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
@@ -380,15 +386,38 @@ table.list tr.clk:hover{background:#f8fafc}
           <option value="student">학생</option>
           <option value="nurse">간호사</option>
         </select>
+        <button class="action primary" onclick="openUserForm()">사용자 추가</button>
         <button class="action light" onclick="loadUsers()">🔄 새로고침</button>
       </div>
-      <p class="sub" style="color:var(--muted);font-size:13px">※ 학생을 간호사로 승격하거나 되돌릴 수 있습니다. 본인 계정은 변경할 수 없습니다.</p>
+      <p class="sub" style="color:var(--muted);font-size:13px">이름·이메일·역할을 수정하거나 계정을 삭제할 수 있습니다. 계정을 삭제해도 작성된 실습 기록은 보관됩니다. 본인 계정은 변경할 수 없습니다.</p>
       <div id="usersContainer"></div>
     </div>
 
     <div class="footer">© 병원 EMR 실습 — 담당 간호사 조회/승인</div>
   </main>
 </div>
+
+<dialog id="userDialog" aria-labelledby="userFormTitle">
+  <form id="userForm" onsubmit="saveUser(event)">
+    <h2 id="userFormTitle">사용자 추가</h2>
+    <input type="hidden" id="userId">
+    <label for="userName">이름</label>
+    <input type="text" id="userName" required maxlength="100" autocomplete="off">
+    <label for="userEmail">이메일</label>
+    <input type="email" id="userEmail" required maxlength="254" autocomplete="off">
+    <label for="userRole">역할</label>
+    <select id="userRole"><option value="student">학생</option><option value="nurse">간호사(관리자)</option></select>
+    <div id="userPasswordField">
+      <label for="userPassword">초기 비밀번호 (6자 이상)</label>
+      <input type="password" id="userPassword" minlength="6" maxlength="256" autocomplete="new-password">
+    </div>
+    <p id="userFormError" role="alert"></p>
+    <div class="actions-row">
+      <button type="button" class="action light" onclick="document.getElementById('userDialog').close()">취소</button>
+      <button type="submit" id="userSaveBtn" class="action primary">추가</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Supabase JS (선택). 키 미설정 시 데모(로컬) 모드 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -540,13 +569,33 @@ const admin = {
     }
     return _demoUsers().map(u=>({id:u.id, name:u.name, role:u.role, email:u.email}));
   },
-  async setRole(id, role){
-    if(USE_CLOUD){
-      const { error } = await sb.from('profiles').update({ role }).eq('id', id);
-      if(error) throw error; return;
+  async request(body){
+    const { data, error } = await sb.functions.invoke('admin-users', { body });
+    if(error){
+      let message='사용자 정보를 처리하지 못했습니다. 다시 로그인하거나 잠시 후 다시 시도하세요.';
+      try{ message=(await error.context.json()).error||message; }catch(e){}
+      throw new Error(message);
     }
-    const u=_demoUsers(); const i=u.findIndex(x=>x.id===id);
-    if(i>=0){ u[i].role=role; _saveDemoUsers(u); }
+    return data;
+  },
+  async saveUser(user){
+    if(USE_CLOUD) return await admin.request({ ...user, action:user.id ? 'update' : 'create' });
+    const users=_demoUsers();
+    if(users.some(u=>u.id!==user.id && u.email.toLowerCase()===user.email.toLowerCase())){
+      throw new Error('이미 등록된 이메일입니다.');
+    }
+    if(user.id){
+      const existing=users.find(u=>u.id===user.id);
+      if(!existing) throw new Error('사용자를 찾을 수 없습니다.');
+      Object.assign(existing, {name:user.name,email:user.email,role:user.role});
+    } else {
+      users.push({id:crypto.randomUUID(),name:user.name,email:user.email,role:user.role,pw:user.password});
+    }
+    _saveDemoUsers(users);
+  },
+  async removeUser(id){
+    if(USE_CLOUD) return await admin.request({ action:'delete', id });
+    _saveDemoUsers(_demoUsers().filter(u=>u.id!==id));
   }
 };
 
@@ -988,7 +1037,7 @@ async function loadUsers(){
   const c=document.getElementById('usersContainer');
   c.innerHTML='<div class="muted-empty">불러오는 중…</div>';
   try{ _users=await admin.listUsers(); renderUsers(); }
-  catch(e){ c.innerHTML='<div class="muted-empty">불러오기 오류: '+(e.message||e)+'</div>'; }
+  catch(e){ c.innerHTML='<div class="muted-empty">불러오기 오류: '+esc(e.message||e)+'</div>'; }
 }
 function renderUsers(){
   const txt=(document.getElementById('uFilterText').value||'').toLowerCase();
@@ -1000,23 +1049,61 @@ function renderUsers(){
   });
   const c=document.getElementById('usersContainer');
   if(rows.length===0){ c.innerHTML='<div class="muted-empty">사용자가 없습니다.</div>'; return; }
-  let html='<table class="list"><thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>변경</th></tr></thead><tbody>';
+  let html='<table class="list"><thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>작업</th></tr></thead><tbody>';
   rows.forEach(u=>{
-    const isSelf=(u.id===session.userId);
     const rolePill=u.role==='nurse' ? '<span class="pill approved">간호사</span>' : '<span class="pill submitted">학생</span>';
-    let btn;
-    if(isSelf) btn='<span style="color:var(--muted)">본인</span>';
-    else if(u.role==='nurse') btn=`<button class="action light" onclick="setUserRole('${u.id}','student')">학생으로</button>`;
-    else btn=`<button class="action ok" onclick="setUserRole('${u.id}','nurse')">간호사로 승격</button>`;
-    html+=`<tr><td>${esc(u.name||'-')}</td><td>${esc(u.email||'-')}</td><td>${rolePill}</td><td>${btn}</td></tr>`;
+    const actions=u.id===session.userId
+      ? '<span style="color:var(--muted)">본인</span>'
+      : `<button class="action light" onclick="openUserForm('${u.id}')">수정</button> <button class="action warning" onclick="deleteUser('${u.id}',this)">삭제</button>`;
+    html+=`<tr><td>${esc(u.name||'-')}</td><td>${esc(u.email||'-')}</td><td>${rolePill}</td><td>${actions}</td></tr>`;
   });
   html+='</tbody></table>'; c.innerHTML=html;
 }
-async function setUserRole(id, role){
-  const msg = role==='nurse' ? '이 사용자를 간호사로 승격하시겠습니까?' : '이 사용자를 학생으로 되돌리시겠습니까?';
-  if(!confirm(msg)) return;
-  try{ await admin.setRole(id, role); await loadUsers(); }
-  catch(e){ alert('변경 오류: '+(e.message||e)); }
+function openUserForm(id){
+  const user=id ? _users.find(u=>u.id===id) : null;
+  if(id && (!user || id===session.userId)) return;
+  document.getElementById('userForm').reset();
+  document.getElementById('userId').value=id||'';
+  document.getElementById('userName').value=user ? user.name : '';
+  document.getElementById('userEmail').value=user ? user.email : '';
+  document.getElementById('userRole').value=user ? user.role : 'student';
+  document.getElementById('userPasswordField').classList.toggle('hidden',!!user);
+  document.getElementById('userPassword').required=!user;
+  document.getElementById('userFormTitle').textContent=user ? '사용자 수정' : '사용자 추가';
+  document.getElementById('userSaveBtn').textContent=user ? '저장' : '추가';
+  document.getElementById('userFormError').textContent='';
+  document.getElementById('userDialog').showModal();
+}
+async function saveUser(event){
+  event.preventDefault();
+  const button=document.getElementById('userSaveBtn');
+  const error=document.getElementById('userFormError');
+  const user={
+    id:document.getElementById('userId').value,
+    name:document.getElementById('userName').value.trim(),
+    email:document.getElementById('userEmail').value.trim().toLowerCase(),
+    role:document.getElementById('userRole').value
+  };
+  if(!user.id) user.password=document.getElementById('userPassword').value;
+  if(!user.name){ error.textContent='이름을 입력하세요.'; return; }
+  try{
+    button.disabled=true; error.textContent='';
+    await admin.saveUser(user);
+    document.getElementById('userPassword').value='';
+    document.getElementById('userDialog').close();
+    await loadUsers();
+  }catch(e){ error.textContent=e.message||String(e); }
+  finally{ button.disabled=false; }
+}
+async function deleteUser(id,button){
+  const user=_users.find(u=>u.id===id);
+  if(!user || id===session.userId) return;
+  if(!confirm(`${user.name} (${user.email}) 계정을 삭제하시겠습니까? 로그인할 수 없게 되며, 작성된 실습 기록은 보관됩니다.`)) return;
+  try{
+    button.disabled=true;
+    await admin.removeUser(id);
+    await loadUsers();
+  }catch(e){ button.disabled=false; alert('삭제 오류: '+(e.message||e)); }
 }
 
 /* ---------- 유틸 ---------- */
