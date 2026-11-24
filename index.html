@@ -51,6 +51,7 @@ body{margin:0;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:#
 label{font-size:13px;color:#284b8f;font-weight:700}
 input[type="text"],select,input[type='datetime-local'],input[type='number']{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:14px}
 input[type="text"]{height:calc(2lh + 36px)}
+.h-grid input[type="datetime-local"]{height:calc(2lh + 36px)}
 input[readonly]{background:#f4f6fb}
 button.action{border:none;padding:8px 14px;margin-left:4px;border-radius:10px;font-size:14px;cursor:pointer}
 button.primary{background:var(--header);color:#fff}
@@ -160,18 +161,19 @@ table.list tr.clk:hover{background:#f8fafc}
         <div style="grid-column: span 1"><label>나이</label><input type="text" id="p_age"></div>
         <div style="grid-column: span 2">
           <label for="w_role">기록자 직종</label>
-          <select id="w_role" onchange="updateSaveButton()"><option value="nurse">간호사</option><option value="doctor">의사</option></select>
+          <select id="w_role"><option value="nurse">간호사</option></select>
         </div>
         <div style="grid-column: span 2">
           <label>기록자 이름</label>
           <input type="text" id="w_name" readonly>
         </div>
-        <div style="grid-column: span 3"><label for="w_time">작성일시(저장 시 자동)</label><input type="text" id="w_time" readonly></div>
+        <div style="grid-column: span 3"><label for="w_time">작성일시</label><input type="datetime-local" id="w_time" required></div>
       </div>
       <div class="actions-row" style="display:flex;justify-content:flex-end;margin-top:12px;gap:8px">
         <button class="action light" onclick="window.print()">🖨️ 인쇄</button>
         <button class="action warning" onclick="clearInputs()">⚡ 전체 초기화</button>
-        <button id="submitBtn" class="action primary" onclick="submitRecord()">임시저장</button>
+        <button id="submitBtn" class="action primary" onclick="submitRecord('draft')">임시저장</button>
+        <button id="certifyBtn" class="action ok" onclick="submitRecord('certified')">인증저장</button>
       </div>
     </div>
 
@@ -526,12 +528,12 @@ const db = {
   async list(){
     if(USE_CLOUD && !session.guest){
       // 학생은 RLS로 본인 기록만, 간호사는 전체가 반환됨
-      const { data, error } = await sb.from('emr_records').select('*').order('created_at',{ascending:false});
+      const { data, error } = await sb.from('emr_records').select('*').order('written_at',{ascending:false});
       if(error) throw error; return data||[];
     }
     let all = JSON.parse(localStorage.getItem(localRecordKey())||"[]");
     if(session.role!=='nurse'){ all = all.filter(r=>r.writer_id===session.userId); }
-    return all.sort((a,b)=> (b.created_at||"").localeCompare(a.created_at||""));
+    return all.sort((a,b)=> (b.written_at||b.created_at||"").localeCompare(a.written_at||a.created_at||""));
   },
   async approve(id, by){
     const patch = { status:'approved', approved_by:by, approved_at:new Date().toISOString() };
@@ -663,7 +665,6 @@ function routeAfterLogin(){
       document.querySelector('#studentListView p.sub').textContent='이 브라우저에 저장한 기록을 수정·삭제할 수 있습니다.';
     }
     document.getElementById('w_name').value = session.name;
-    updateSaveButton();
   }
 }
 async function logout(){ try{ await auth.signOut(); }catch(e){} location.reload(); }
@@ -724,13 +725,6 @@ function toggleOther(id){
   o.style.display = (s.value==='기타') ? 'block' : 'none';
 }
 
-function updateSaveButton(){
-  const doctor=document.getElementById('w_role').value==='doctor';
-  const button=document.getElementById('submitBtn');
-  button.textContent=doctor ? '인증저장' : '임시저장';
-  button.className=doctor ? 'action ok' : 'action primary';
-}
-
 function clearInputs(){
   if(confirm('입력된 모든 내용을 삭제하시겠습니까?')){
     document.querySelectorAll('#studentApp textarea, #studentApp input[type=text], #studentApp input[type=datetime-local], #studentApp input[type=number], #studentApp select').forEach(el=>{
@@ -743,7 +737,6 @@ function clearInputs(){
     document.getElementById('w_role').value='nurse';
     editingId=null;
     titleEl.textContent=RECORD_TYPES[currentType];
-    updateSaveButton();
   }
 }
 
@@ -768,7 +761,7 @@ function serializeSection(section){
   return items.filter(i=>i.value && String(i.value).trim()).map(i=>({label:i.label, value:i.value}));
 }
 
-async function submitRecord(){
+async function submitRecord(saveType='draft'){
   const patient = {
     name: document.getElementById('p_name').value.trim(),
     mrn: document.getElementById('p_mrn').value.trim(),
@@ -778,36 +771,39 @@ async function submitRecord(){
   };
   if(!patient.name){ alert('환자 이름을 입력하세요.'); return; }
   const writerRole=document.getElementById('w_role').value;
-  if(!['nurse','doctor'].includes(writerRole)){ alert('기록자 직종을 선택하세요.'); return; }
+  if(writerRole!=='nurse'){ alert('기록자 직종을 선택하세요.'); return; }
+  if(!['draft','certified'].includes(saveType)){ alert('저장 방식을 선택하세요.'); return; }
+  const writtenValue=document.getElementById('w_time').value;
+  const writtenDate=new Date(writtenValue);
+  if(!writtenValue || !Number.isFinite(writtenDate.getTime())){ alert('작성일시를 입력하세요.'); return; }
   const section = document.getElementById(currentType);
   const content = serializeSection(section);
   if(content.length===0){ if(!confirm('입력된 기록 내용이 없습니다. 그래도 저장할까요?')) return; }
 
-  const button=document.getElementById('submitBtn');
-  const saveLabel=writerRole==='doctor' ? '인증저장' : '임시저장';
+  const buttons=[document.getElementById('submitBtn'),document.getElementById('certifyBtn')];
+  if(buttons.some(button=>button.disabled)) return;
+  const saveLabel=saveType==='certified' ? '인증저장' : '임시저장';
   const fields={
     record_type:currentType, record_type_label:RECORD_TYPES[currentType],
-    patient, content, writer_role:writerRole
+    patient, content, writer_role:writerRole, save_type:saveType, written_at:writtenDate.toISOString()
   };
   try{
-    button.disabled=true;
+    buttons.forEach(button=>button.disabled=true);
     if(editingId){
       await db.update(editingId,fields);
     } else {
       const saved=await db.insert({...fields,writer_name:session.name,status:'submitted'});
       editingId=saved.id;
-      document.getElementById('w_time').value=fmtDate(saved.created_at);
     }
     const status=document.getElementById('status');
     status.textContent=saveLabel+' 완료';
-    status.className=writerRole==='doctor' ? 'pill approved' : 'pill draft';
+    status.className=saveType==='certified' ? 'pill approved' : 'pill draft';
     titleEl.textContent=RECORD_TYPES[currentType];
     alert(saveLabel+'되었습니다.'+(session.guest ? ' 이 브라우저의 내 저장 기록에서 확인하세요.' : ''));
   }catch(e){
     alert('저장 중 오류: '+(e.message||e));
   }finally{
-    button.disabled=false;
-    updateSaveButton();
+    buttons.forEach(button=>button.disabled=false);
   }
 }
 
@@ -821,14 +817,12 @@ function resetStudentForm(){
   });
   document.getElementById('w_time').value='';
   document.getElementById('w_role').value='nurse';
-  updateSaveButton();
 }
 function fillSection(type, rec){
   resetStudentForm();
   const p=rec.patient||{};
-  _setVal('w_role',rec.writer_role||'nurse');
-  _setVal('w_time',fmtDate(rec.created_at));
-  updateSaveButton();
+  _setVal('w_role','nurse');
+  _setVal('w_time',fmtDate(rec.written_at||rec.created_at).replace(' ','T'));
   _setVal('p_name',p.name); _setVal('p_mrn',p.mrn); _setVal('p_room',p.room); _setVal('p_sex',p.sex); _setVal('p_age',p.age);
   const map={}; (rec.content||[]).forEach(it=>{ if(!(it.label in map)) map[it.label]=it.value; });
   const section=document.getElementById(type);
@@ -882,10 +876,10 @@ function renderStudentList(){
       ? `<button class="action light" onclick="event.stopPropagation();editRecord('${r.id}')">수정</button> <button class="action warning" onclick="event.stopPropagation();deleteStudentRecord('${r.id}')">삭제</button>`
       : '<span style="color:var(--muted)">승인됨</span>';
     html+=`<tr class="clk" onclick="openStudentDetail('${r.id}')">
-      <td>${fmtDate(r.created_at)}</td>
+      <td>${fmtDate(r.written_at||r.created_at)}</td>
       <td>${esc((r.patient&&r.patient.name)||'-')}</td>
       <td>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||r.record_type)}</td>
-      <td>${r.writer_role==='doctor' ? '의사' : '간호사'}</td>
+      <td>간호사</td>
       <td>${statusPill(r)}</td>
       <td>${actions}</td>
     </tr>`;
@@ -908,8 +902,8 @@ function openStudentDetail(id){
       <div class="k">병록번호</div><div class="v">${esc(p.mrn||'-')}</div>
       <div class="k">병실</div><div class="v">${esc(p.room||'-')}</div>
       <div class="k">성별/나이</div><div class="v">${esc(p.sex||'-')} / ${esc(p.age||'-')}</div>
-      <div class="k">기록자 직종</div><div class="v">${r.writer_role==='doctor' ? '의사' : '간호사'}</div>
-      <div class="k">작성일시</div><div class="v">${fmtDate(r.created_at)}</div>
+      <div class="k">기록자 직종</div><div class="v">간호사</div>
+      <div class="k">작성일시</div><div class="v">${fmtDate(r.written_at||r.created_at)}</div>
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div class="kv">${contentHtml}</div>
@@ -931,7 +925,6 @@ function editRecord(id){
   const navBtn=[...buttons].find(b=>b.getAttribute('data-target')===currentType);
   titleEl.textContent=(navBtn?navBtn.textContent.trim():(RECORD_TYPES[currentType]||''))+' (수정 중)';
   const st=document.getElementById('status'); st.textContent='수정 중'; st.className='pill draft';
-  updateSaveButton();
   showStudentInput();
 }
 async function deleteStudentRecord(id){
@@ -956,7 +949,7 @@ async function loadList(){
 }
 function recordState(record){
   if(record.status==='approved') return 'approved';
-  return record.writer_role==='doctor' ? 'certified' : 'draft';
+  return record.save_type||(record.writer_role==='doctor' ? 'certified' : 'draft');
 }
 function statusPill(record){
   const state=recordState(record);
@@ -982,12 +975,12 @@ function renderList(){
   let html='<table class="list"><thead><tr><th>작성일시</th><th>환자명</th><th>병록번호</th><th>기록종류</th><th>기록자</th><th>기록자 직종</th><th>상태</th></tr></thead><tbody>';
   rows.forEach(r=>{
     html+=`<tr class="clk" onclick="openDetail('${r.id}')">
-      <td>${fmtDate(r.created_at)}</td>
+      <td>${fmtDate(r.written_at||r.created_at)}</td>
       <td>${esc((r.patient&&r.patient.name)||'-')}</td>
       <td>${esc((r.patient&&r.patient.mrn)||'-')}</td>
       <td>${esc(r.record_type_label||RECORD_TYPES[r.record_type]||r.record_type)}</td>
       <td>${esc(r.writer_name||'-')}</td>
-      <td>${r.writer_role==='doctor' ? '의사' : '간호사'}</td>
+      <td>간호사</td>
       <td>${statusPill(r)}</td>
     </tr>`;
   });
@@ -1016,8 +1009,8 @@ function openDetail(id){
       <div class="k">병실</div><div class="v">${esc(p.room||'-')}</div>
       <div class="k">성별/나이</div><div class="v">${esc(p.sex||'-')} / ${esc(p.age||'-')}</div>
       <div class="k">기록자</div><div class="v">${esc(r.writer_name||'-')}</div>
-      <div class="k">기록자 직종</div><div class="v">${r.writer_role==='doctor' ? '의사' : '간호사'}</div>
-      <div class="k">작성일시</div><div class="v">${fmtDate(r.created_at)}</div>
+      <div class="k">기록자 직종</div><div class="v">간호사</div>
+      <div class="k">작성일시</div><div class="v">${fmtDate(r.written_at||r.created_at)}</div>
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div class="kv">${contentHtml}</div>
